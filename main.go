@@ -80,22 +80,35 @@ func main() {
 
 // Method focus of this exercise
 func executeUpdates(interval int, authorizer *autorest.Authorizer, graphAuthorizer *autorest.Authorizer) {
-	for true {
-		now := time.Now()
-		subs, err := getSubscriptions(*authorizer)
-		if err != nil {
-			log.Panic(err)
+	done := make(chan bool)
+	ticker := time.NewTicker(time.Duration(interval) * time.Second)
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case t := <-ticker.C:
+				now := time.Now()
+				back, err := time.ParseDuration(fmt.Sprintf("-%ds", interval*3))
+				if err != nil {
+					log.Panic(err)
+				}
+				start = now.Add(back)
+				subs, err := getSubscriptions(*authorizer)
+				if err != nil {
+					log.Panic(err)
+				}
+				var wg sync.WaitGroup
+				wg.Add(len(subs))
+				for _, sub := range subs {
+					go evaluateStatus(*authorizer, *graphAuthorizer, sub, start, now, &wg)
+				}
+				wg.Wait()
+				fmt.Println("Executed at: ", t)
+			}
 		}
-		var wg sync.WaitGroup
-		wg.Add(len(subs))
-		for _, sub := range subs {
-			go evaluateStatus(*authorizer, *graphAuthorizer, sub, start, now, &wg)
-		}
-		wg.Wait()
-		back, _ := time.ParseDuration(fmt.Sprintf("-%ds", interval*20))
-		start = now.Add(back)
-		time.Sleep(time.Duration(interval * 1e+9))
-	}
+	}()
+	<-done
 }
 
 func evaluateStatus(

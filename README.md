@@ -32,8 +32,20 @@ After you finish this exercise the rest of the instructions and the code with th
 
 # Second Exercise
 
-Using the [time](https://golang.org/pkg/time/) package and [channels](https://tour.golang.org/concurrency/2) we can make something more elegant that would allow us to avoid using an infinite loop in the code and avoid the need of using sleep in the code too. 
+Using the [time](https://golang.org/pkg/time/) package and [channels](https://tour.golang.org/concurrency/2) we can make something more elegant that would allow us to avoid using an infinite loop in the code (without a breaking clause), avoid the need of using sleep in the code and give the option to terminate the program. 
 
-In this exercise the goal it is to modify the code to be using [channels](https://gobyexample.com/channels) and [tickers](https://gobyexample.com/tickers) in order to schedule the new runs of this code to be triggered by a new tick
+In this exercise the goal it is to modify the code to be using [channels](https://gobyexample.com/channels) and [tickers](https://gobyexample.com/tickers) to schedule the new runs of this code to be triggered by a new tick
 
 You can find the result of this exercise and the rest os the instructions on the branch `exercise-2` 
+
+# Third Exercise
+
+Using d [channels](https://tour.golang.org/concurrency/2) again we should work on creating a rate limit to max the number of subscriptions being processed simultaneously to avoid throttling in the azure API so we want to limit the max number of subscriptions being processed at the same time to 5 
+
+A tip for this exercise it is to remember to use [defer](https://gobyexample.com/defer) if you haven't used that yet in the other exercises this can make your code more elegant and easier to read. 
+
+You can find the result of this exercise on the branch `exercise-3` 
+
+# Stretch Goal
+
+If you can in the last exercise imagine how using timmers and the channels. Can you create a rate limit in a way that you limit to a maximum of 20 requests per second in the azure API?
