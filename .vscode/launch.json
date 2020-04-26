@@ -1,0 +1,30 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Launch cli auth",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}",
+            "args": [],
+            "env": {
+                "CHECK_SECONDS_INTERVAL": 5
+            },
+        },
+        {
+            "name": "Launch file",
+            "type": "go",
+            "request": "launch",
+            "mode": "debug",
+            "program": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}",
+            "args": [],
+            "env": {
+                "CHECK_SECONDS_INTERVAL": 5,
+                "AZURE_AUTH_LOCATION": "./azure.auth",
+            },
+        }
+    ]
+}
