@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/profiles/2017-03-09/resources/mgmt/subscriptions"
@@ -85,9 +86,12 @@ func executeUpdates(interval int, authorizer *autorest.Authorizer, graphAuthoriz
 		if err != nil {
 			log.Panic(err)
 		}
+		var wg sync.WaitGroup
+		wg.Add(len(subs))
 		for _, sub := range subs {
-			evaluateStatus(*authorizer, *graphAuthorizer, sub, start, now)
+			go evaluateStatus(*authorizer, *graphAuthorizer, sub, start, now, &wg)
 		}
+		wg.Wait()
 		back, _ := time.ParseDuration(fmt.Sprintf("-%ds", interval*20))
 		start = now.Add(back)
 		time.Sleep(time.Duration(interval * 1e+9))
@@ -97,7 +101,9 @@ func executeUpdates(interval int, authorizer *autorest.Authorizer, graphAuthoriz
 func evaluateStatus(
 	auth autorest.Authorizer, authGraph autorest.Authorizer,
 	subscription string,
-	fromTime time.Time, toTime time.Time) {
+	fromTime time.Time, toTime time.Time,
+	wg *sync.WaitGroup) {
+	defer wg.Done()
 	log.Printf("Evaluating status for: %s", subscription)
 
 	resourceClient := resources.NewClient(subscription)

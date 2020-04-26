@@ -1,4 +1,4 @@
-# Learn go while implementing azure auto tag
+# Learn go while implementing Azure auto tag
 
 The idea of this repo is to go step by step with the implementation of some more advanced concepts of go.
 
@@ -22,11 +22,18 @@ Some os the optimization considerations that we might take into account:
  3- The interval should be count after all the subscriptions have been processed.
 
 
-# First Excercise.
+# First Exercise.
 
 Having the application waiting until one application finishes applying the tags to start making the queries in other application it is inefficient. How can we make sure that the calls to `evaluateStatus` are made in parallel but that we wait for all of them to finish before we start waiting for the interval?
 
-The idea of this exercise is to introduce [goroutines](https://tour.golang.org/concurrency/1) you can find a good explanation about go-routines at https://gobyexample.com/goroutines and https://golangbot.com/goroutines/ the idea is to also introduce [wait groups](https://golang.org/pkg/sync/) you can finde more information about wait-groups at https://gobyexample.com/waitgroups and https://tutorialedge.net/golang/go-waitgroup-tutorial/
+The idea of this exercise is to introduce [goroutines](https://tour.golang.org/concurrency/1) you can find a good explanation about go-routines at https://gobyexample.com/goroutines and https://golangbot.com/goroutines/ the idea is to also introduce [wait groups](https://golang.org/pkg/sync/) you can find more information about wait-groups at https://gobyexample.com/waitgroups and https://tutorialedge.net/golang/go-waitgroup-tutorial/
 
 After you finish this exercise the rest of the instructions and the code with that solution can be found in the branch `exercise-1`
 
+# Second Exercise
+
+Using the [time](https://golang.org/pkg/time/) package and [channels](https://tour.golang.org/concurrency/2) we can make something more elegant that would allow us to avoid using an infinite loop in the code and avoid the need of using sleep in the code too. 
+
+In this exercise the goal it is to modify the code to be using [channels](https://gobyexample.com/channels) and [tickers](https://gobyexample.com/tickers) in order to schedule the new runs of this code to be triggered by a new tick
+
+You can find the result of this exercise and the rest os the instructions on the branch `exercise-2` 
