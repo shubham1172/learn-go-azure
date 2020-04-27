@@ -80,7 +80,9 @@ func main() {
 
 // Method focus of this exercise
 func executeUpdates(interval int, authorizer *autorest.Authorizer, graphAuthorizer *autorest.Authorizer) {
-	for true {
+
+	ticker := time.NewTicker(time.Duration(interval) * time.Second)
+	for range ticker.C {
 		now := time.Now()
 		subs, err := getSubscriptions(*authorizer)
 		if err != nil {
@@ -89,7 +91,10 @@ func executeUpdates(interval int, authorizer *autorest.Authorizer, graphAuthoriz
 		wg := sync.WaitGroup{}
 		wg.Add(len(subs))
 		for _, sub := range subs {
-			go evaluateStatus(*authorizer, *graphAuthorizer, sub, &wg, start, now)
+			go func() {
+				defer wg.Done()
+				evaluateStatus(*authorizer, *graphAuthorizer, sub, start, now)
+			}()
 		}
 
 		back, _ := time.ParseDuration(fmt.Sprintf("-%ds", interval*20))
@@ -101,11 +106,8 @@ func executeUpdates(interval int, authorizer *autorest.Authorizer, graphAuthoriz
 func evaluateStatus(
 	auth autorest.Authorizer, authGraph autorest.Authorizer,
 	subscription string,
-	wg *sync.WaitGroup,
 	fromTime time.Time, toTime time.Time) {
 	log.Printf("Evaluating status for: %s", subscription)
-
-	defer wg.Done()
 
 	resourceClient := resources.NewClient(subscription)
 	activityClient := insights.NewActivityLogsClient(subscription)
