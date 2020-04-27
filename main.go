@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -44,15 +42,10 @@ func main() {
 	if err != nil || authorizer == nil {
 		log.Fatalf("Impossible to authenticate to graph %#v", err)
 	}
-	var interval = 5
-	intervalSrt, intervalConfigured := os.LookupEnv("CHECK_SECONDS_INTERVAL")
-	if intervalConfigured {
-		interval, err = strconv.Atoi(intervalSrt)
-		if err != nil {
-			log.Println("CHECK_SECONDS_INTERVAL is not a valid integer")
-			interval = 300
-		}
-	}
+
+	var interval = getIntFromEnv("CHECK_SECONDS_INTERVAL", 2)
+	var rateLimit = getIntFromEnv("CHECK_RATE_LIMIT", 5)
+
 	tenantsClient := subscriptions.NewTenantsClient()
 	tenantsClient.Authorizer = *authorizer
 	tenants, err := tenantsClient.ListComplete(context.Background())
@@ -73,14 +66,14 @@ func main() {
 		}
 		providersList.Next()
 	}
-	executeUpdates(interval, authorizer, graphAuthorizer)
+	executeUpdates(interval, rateLimit, authorizer, graphAuthorizer)
 	log.Println("End of schedule")
 }
 
 // Method focus of this exercise
-func executeUpdates(interval int, authorizer *autorest.Authorizer, graphAuthorizer *autorest.Authorizer) {
+func executeUpdates(interval int, rateLimit int, authorizer *autorest.Authorizer, graphAuthorizer *autorest.Authorizer) {
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
-	pqueue := make(chan bool, 5)
+	pqueue := make(chan bool, rateLimit)
 	for range ticker.C {
 		now := time.Now()
 		subs, err := getSubscriptions(*authorizer)

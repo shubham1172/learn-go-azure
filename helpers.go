@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"strconv"
 
 	"github.com/Azure/azure-sdk-for-go/profiles/preview/preview/subscription/mgmt/subscription"
 	"github.com/Azure/azure-sdk-for-go/services/graphrbac/1.6/graphrbac"
@@ -121,4 +122,17 @@ func getSubscriptions(auth autorest.Authorizer) ([]string, error) {
 		result.Next()
 	}
 	return subs, nil
+}
+
+func getIntFromEnv(key string, defaultValue int) int {
+	value := defaultValue
+	valueStr, valueConfigured := os.LookupEnv(key)
+	if valueConfigured {
+		value, err := strconv.Atoi(valueStr)
+		if err != nil {
+			log.Printf("%s is not a valid integer\n", key)
+			value = defaultValue
+		}
+	}
+	return value
 }
