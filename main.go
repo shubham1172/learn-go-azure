@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/profiles/2017-03-09/resources/mgmt/subscriptions"
@@ -43,8 +44,8 @@ func main() {
 		log.Fatalf("Impossible to authenticate to graph %#v", err)
 	}
 
-	var interval = getIntFromEnv("CHECK_SECONDS_INTERVAL", 2)
-	var rateLimit = getIntFromEnv("CHECK_RATE_LIMIT", 5)
+	var rateLimit = getIntFromEnv("CHECK_RATE_LIMIT_PER_SECOND", 20)
+	var burstLimit = getIntFromEnv("CHECK_BURST_LIMIT", 5)
 
 	tenantsClient := subscriptions.NewTenantsClient()
 	tenantsClient.Authorizer = *authorizer
@@ -66,30 +67,51 @@ func main() {
 		}
 		providersList.Next()
 	}
-	executeUpdates(interval, rateLimit, authorizer, graphAuthorizer)
+	executeUpdates(rateLimit, burstLimit, authorizer, graphAuthorizer)
 	log.Println("End of schedule")
 }
 
 // Method focus of this exercise
-func executeUpdates(interval int, rateLimit int, authorizer *autorest.Authorizer, graphAuthorizer *autorest.Authorizer) {
-	ticker := time.NewTicker(time.Duration(interval) * time.Second)
-	pqueue := make(chan bool, rateLimit)
-	for range ticker.C {
+func executeUpdates(rateLimit int, burstLimit int, authorizer *autorest.Authorizer, graphAuthorizer *autorest.Authorizer) {
+	pqueue := make(chan func(), burstLimit)
+	done := make(chan interface{})
+
+	go executeEvaluateStatusInParallel(pqueue, done, rateLimit)
+
+	for {
 		now := time.Now()
 		subs, err := getSubscriptions(*authorizer)
 		if err != nil {
 			log.Panic(err)
 		}
 		for _, sub := range subs {
-			go func(sub string) {
-				pqueue <- true
-				evaluateStatus(*authorizer, *graphAuthorizer, sub, start, now)
-				<-pqueue
-			}(sub)
+			go func(sub string, start, now time.Time) {
+				pqueue <- func() { evaluateStatus(*authorizer, *graphAuthorizer, sub, start, now) }
+			}(sub, start, now)
 		}
 
-		back, _ := time.ParseDuration(fmt.Sprintf("-%ds", interval*20))
+		back, _ := time.ParseDuration(fmt.Sprintf("-%ds", rateLimit*20))
 		start = now.Add(back)
+	}
+}
+
+func executeEvaluateStatusInParallel(pqueue chan func(), done chan interface{}, rateLimit int) {
+	var wg sync.WaitGroup
+	ticker := time.NewTicker(time.Second / time.Duration(rateLimit))
+	defer ticker.Stop()
+
+	for range ticker.C {
+		select {
+		case task := <-pqueue:
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				task()
+			}()
+		// graceful shutdown
+		case <-done:
+			wg.Wait()
+		}
 	}
 }
 

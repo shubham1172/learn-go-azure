@@ -17,3 +17,4 @@
 
 azure.auth
 learn-go-azure
+.env
