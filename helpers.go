@@ -125,10 +125,12 @@ func getSubscriptions(auth autorest.Authorizer) ([]string, error) {
 }
 
 func getIntFromEnv(key string, defaultValue int) int {
+	var err error
 	value := defaultValue
+
 	valueStr, valueConfigured := os.LookupEnv(key)
 	if valueConfigured {
-		value, err := strconv.Atoi(valueStr)
+		value, err = strconv.Atoi(valueStr)
 		if err != nil {
 			log.Printf("%s is not a valid integer\n", key)
 			value = defaultValue
