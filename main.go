@@ -7,7 +7,6 @@ import (
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/profiles/2017-03-09/resources/mgmt/subscriptions"
@@ -80,26 +79,24 @@ func main() {
 
 // Method focus of this exercise
 func executeUpdates(interval int, authorizer *autorest.Authorizer, graphAuthorizer *autorest.Authorizer) {
-
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
+	pqueue := make(chan bool, 5)
 	for range ticker.C {
 		now := time.Now()
 		subs, err := getSubscriptions(*authorizer)
 		if err != nil {
 			log.Panic(err)
 		}
-		wg := sync.WaitGroup{}
-		wg.Add(len(subs))
 		for _, sub := range subs {
-			go func() {
-				defer wg.Done()
+			go func(sub string) {
+				pqueue <- true
 				evaluateStatus(*authorizer, *graphAuthorizer, sub, start, now)
-			}()
+				<-pqueue
+			}(sub)
 		}
 
 		back, _ := time.ParseDuration(fmt.Sprintf("-%ds", interval*20))
 		start = now.Add(back)
-		time.Sleep(time.Duration(interval * 1e+9))
 	}
 }
 
