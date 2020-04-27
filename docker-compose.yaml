@@ -1,0 +1,12 @@
+version: "3.7"
+services:
+  learn-go-azure:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    image: learn-go-azure
+    restart: unless-stopped
+    volumes:
+      - .:/go/src/learn-go-azure/
+    env_file: .env

@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/profiles/2017-03-09/resources/mgmt/subscriptions"
@@ -44,7 +45,7 @@ func main() {
 	if err != nil || authorizer == nil {
 		log.Fatalf("Impossible to authenticate to graph %#v", err)
 	}
-	var interval = 300
+	var interval = 5
 	intervalSrt, intervalConfigured := os.LookupEnv("CHECK_SECONDS_INTERVAL")
 	if intervalConfigured {
 		interval, err = strconv.Atoi(intervalSrt)
@@ -85,9 +86,12 @@ func executeUpdates(interval int, authorizer *autorest.Authorizer, graphAuthoriz
 		if err != nil {
 			log.Panic(err)
 		}
+		wg := sync.WaitGroup{}
+		wg.Add(len(subs))
 		for _, sub := range subs {
-			evaluateStatus(*authorizer, *graphAuthorizer, sub, start, now)
+			go evaluateStatus(*authorizer, *graphAuthorizer, sub, &wg, start, now)
 		}
+
 		back, _ := time.ParseDuration(fmt.Sprintf("-%ds", interval*20))
 		start = now.Add(back)
 		time.Sleep(time.Duration(interval * 1e+9))
@@ -97,8 +101,11 @@ func executeUpdates(interval int, authorizer *autorest.Authorizer, graphAuthoriz
 func evaluateStatus(
 	auth autorest.Authorizer, authGraph autorest.Authorizer,
 	subscription string,
+	wg *sync.WaitGroup,
 	fromTime time.Time, toTime time.Time) {
 	log.Printf("Evaluating status for: %s", subscription)
+
+	defer wg.Done()
 
 	resourceClient := resources.NewClient(subscription)
 	activityClient := insights.NewActivityLogsClient(subscription)

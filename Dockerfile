@@ -12,6 +12,7 @@ RUN apk update && apk add --no-cache git ca-certificates tzdata && update-ca-cer
 # Create appuser
 ENV USER=appuser
 ENV UID=10001
+ENV GO111MODULE=off
 
 # See https://stackoverflow.com/a/55757473/12429735
 RUN adduser \
@@ -23,6 +24,9 @@ RUN adduser \
     --uid "${UID}" \
     "${USER}"
 
+
+WORKDIR $GOPATH/src/learn-go-azure/
+
 COPY . .
 
 # Fetch dependencies.
@@ -31,7 +35,12 @@ RUN go get -d -v
 # Build the binary
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags='-w -s -extldflags "-static"' -a \
-    -o /go/bin/az-auto-tag .
+    -o /go/bin/learn-go-azure .
+
+RUN go get github.com/githubnemo/CompileDaemon
+
+ENTRYPOINT CompileDaemon -directory=$GOPATH/src/learn-go-azure/ \
+    -build="CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags='-w -s -extldflags \"-static\"' -a -o /go/bin/learn-go-azure ."
 
 ############################
 # STEP 2 build a small image

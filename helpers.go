@@ -72,7 +72,7 @@ func newAuthorizer() (*autorest.Authorizer, error) {
 
 	// Execute logic to return an authorizer from the correct method
 	if clientIDExists && tenantIDExists {
-		log.Println("Logging from environment")
+		log.Println("Logging from environment!")
 		authorizer, err := auth.NewAuthorizerFromEnvironment()
 		return &authorizer, err
 	} else if fileAuthSet {

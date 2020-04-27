@@ -1,0 +1,6 @@
+Dockerfile
+docker-compose
+.vscode
+README.md
+LICENSE
+Makefile
