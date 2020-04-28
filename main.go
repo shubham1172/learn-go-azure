@@ -70,10 +70,17 @@ func main() {
 	log.Println("End of schedule")
 }
 
+func getRateLimitedPrepareDecorator(apiChan *chan interface{}) autorest.PrepareDecorator {
+	return func(p autorest.Preparer) autorest.Preparer {
+		*apiChan <- struct{}{}
+		return p
+	}
+}
+
 // Method focus of this exercise
 func executeUpdates(rateLimit int, burstLimit int, authorizer *autorest.Authorizer, graphAuthorizer *autorest.Authorizer) {
 	// hold a maximum of burstLimit subscriptions
-	pqueue := make(chan interface{}, burstLimit)
+	subChan := make(chan interface{}, burstLimit)
 
 	// allows rateLimit calls per second
 	apiChan := make(chan interface{}, rateLimit)
@@ -88,9 +95,10 @@ func executeUpdates(rateLimit int, burstLimit int, authorizer *autorest.Authoriz
 		}
 		for _, sub := range subs {
 			go func(apiChan *chan interface{}, sub string, start, now time.Time) {
-				pqueue <- struct{}{}
-				evaluateStatus(*authorizer, *graphAuthorizer, sub, apiChan, start, now)
-				<-pqueue
+				subChan <- struct{}{}
+				evaluateStatus(*authorizer, *graphAuthorizer, sub,
+					getRateLimitedPrepareDecorator(apiChan), start, now)
+				<-subChan
 			}(&apiChan, sub, start, now)
 		}
 
@@ -111,22 +119,33 @@ func flushChannelEverySecond(apiChan *chan interface{}) {
 	}
 }
 
+func getRateLimitedContext(apiChan *chan interface{}) context.Context {
+	return autorest.WithSendDecorators(context.Background(),
+		[]autorest.SendDecorator{
+			func(s autorest.Sender) autorest.Sender {
+				*apiChan <- struct{}{}
+				return s
+			}})
+}
+
 func evaluateStatus(
 	auth autorest.Authorizer, authGraph autorest.Authorizer,
 	subscription string,
-	apiChan *chan interface{},
+	decorator autorest.PrepareDecorator,
 	fromTime time.Time, toTime time.Time) {
 	log.Printf("Evaluating status for: %s", subscription)
 
 	resourceClient := resources.NewClient(subscription)
+	resourceClient.Authorizer = auth
+	resourceClient.RequestInspector = decorator
+
 	activityClient := insights.NewActivityLogsClient(subscription)
 	activityClient.Authorizer = auth
-	resourceClient.Authorizer = auth
+	activityClient.RequestInspector = decorator
 
 	tstarts := fromTime.Format("2006-01-02T15:04:05")
 	ts := toTime.Format("2006-01-02T15:04:05")
 	filterString := fmt.Sprintf("eventTimestamp ge '%s' and eventTimestamp le '%s'", tstarts, ts)
-	*apiChan <- struct{}{}
 	listResources, err := activityClient.ListComplete(context.Background(), filterString, "")
 	if err != nil {
 		log.Fatal(err)
@@ -148,7 +167,7 @@ func evaluateStatus(
 			log.Println(strings.ToLower(*logActivity.ResourceType.Value))
 			continue
 		}
-		*apiChan <- struct{}{}
+
 		res, err := resourceClient.GetByID(context.Background(), resourceID, apiVersion)
 
 		if res.Response.StatusCode != 404 && err != nil {
@@ -178,7 +197,7 @@ func evaluateStatus(
 				ID:   res.ID,
 				Tags: res.Tags,
 			}
-			*apiChan <- struct{}{}
+
 			_, err := resourceClient.UpdateByID(context.Background(), *resUpdate.ID, apiVersion, resUpdate)
 			if err != nil {
 				log.Println(err)
