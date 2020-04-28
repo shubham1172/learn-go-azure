@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -136,5 +137,6 @@ func getIntFromEnv(key string, defaultValue int) int {
 			value = defaultValue
 		}
 	}
+	fmt.Printf("Key %s set to value %d\n", key, value)
 	return value
 }

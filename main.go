@@ -73,6 +73,7 @@ func main() {
 func getRateLimitedPrepareDecorator(apiChan *chan interface{}) autorest.PrepareDecorator {
 	return func(p autorest.Preparer) autorest.Preparer {
 		*apiChan <- struct{}{}
+		fmt.Println("Sending request")
 		return p
 	}
 }
@@ -108,24 +109,16 @@ func executeUpdates(rateLimit int, burstLimit int, authorizer *autorest.Authoriz
 }
 
 func flushChannelEverySecond(apiChan *chan interface{}) {
-	ticker := time.NewTicker(time.Second)
+	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
 
 	for {
+		fmt.Println("Ticker tick")
 		<-ticker.C
 		for len(*apiChan) > 0 {
 			<-*apiChan
 		}
 	}
-}
-
-func getRateLimitedContext(apiChan *chan interface{}) context.Context {
-	return autorest.WithSendDecorators(context.Background(),
-		[]autorest.SendDecorator{
-			func(s autorest.Sender) autorest.Sender {
-				*apiChan <- struct{}{}
-				return s
-			}})
 }
 
 func evaluateStatus(
