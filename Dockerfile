@@ -37,27 +37,26 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags='-w -s -extldflags "-static"' -a \
     -o /go/bin/learn-go-azure .
 
-RUN go get github.com/githubnemo/CompileDaemon
+RUN go get -u github.com/cosmtrek/air
 
-ENTRYPOINT CompileDaemon -directory=$GOPATH/src/learn-go-azure/ \
-    -build="CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags='-w -s -extldflags \"-static\"' -a -o /go/bin/learn-go-azure ."
+ENTRYPOINT air
 
-############################
-# STEP 2 build a small image
-############################
-FROM scratch
+# ############################
+# # STEP 2 build a small image
+# ############################
+# FROM scratch
 
-# Import from builder.
-COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
-COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-COPY --from=builder /etc/passwd /etc/passwd
-COPY --from=builder /etc/group /etc/group
+# # Import from builder.
+# COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
+# COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+# COPY --from=builder /etc/passwd /etc/passwd
+# COPY --from=builder /etc/group /etc/group
 
-# Copy our static executable
-COPY --from=builder /go/bin/learn-go-azure /go/bin/learn-go-azure
+# # Copy our static executable
+# COPY --from=builder /go/bin/learn-go-azure /go/bin/learn-go-azure
 
-# Use an unprivileged user.
-USER appuser:appuser
+# # Use an unprivileged user.
+# USER appuser:appuser
 
-# Run the hello binary.
-ENTRYPOINT ["/go/bin/learn-go-azure"]
+# # Run the hello binary.
+# ENTRYPOINT ["/go/bin/learn-go-azure"]

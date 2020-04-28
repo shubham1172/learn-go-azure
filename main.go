@@ -36,11 +36,11 @@ func main() {
 	log.Println("Starting app Press CTRL+C to end.")
 	authorizer, err := newAuthorizer()
 	if err != nil || authorizer == nil {
-		log.Fatalf("Impossible to authenticate %#v", err)
+		log.Printf("Impossible to authenticate %#v", err)
 	}
 	graphAuthorizer, err := newGraphAuthorizer()
-	if err != nil || authorizer == nil {
-		log.Fatalf("Impossible to authenticate to graph %#v", err)
+	if err != nil || graphAuthorizer == nil {
+		log.Printf("Impossible to authenticate to graph %#v", err)
 	}
 
 	var rateLimit = getIntFromEnv("CHECK_RATE_LIMIT_PER_SECOND", 20)
@@ -73,7 +73,6 @@ func main() {
 func getRateLimitedPrepareDecorator(apiChan *chan interface{}) autorest.PrepareDecorator {
 	return func(p autorest.Preparer) autorest.Preparer {
 		*apiChan <- struct{}{}
-		fmt.Println("Sending request")
 		return p
 	}
 }
@@ -109,11 +108,10 @@ func executeUpdates(rateLimit int, burstLimit int, authorizer *autorest.Authoriz
 }
 
 func flushChannelEverySecond(apiChan *chan interface{}) {
-	ticker := time.NewTicker(time.Minute)
+	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
 	for {
-		fmt.Println("Ticker tick")
 		<-ticker.C
 		for len(*apiChan) > 0 {
 			<-*apiChan
