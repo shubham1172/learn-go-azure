@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Azure/azure-sdk-for-go/profiles/2017-03-09/resources/mgmt/subscriptions"
@@ -73,10 +72,13 @@ func main() {
 
 // Method focus of this exercise
 func executeUpdates(rateLimit int, burstLimit int, authorizer *autorest.Authorizer, graphAuthorizer *autorest.Authorizer) {
-	pqueue := make(chan func(), burstLimit)
-	done := make(chan interface{})
+	// hold a maximum of burstLimit subscriptions
+	pqueue := make(chan interface{}, burstLimit)
 
-	go executeEvaluateStatusInParallel(pqueue, done, rateLimit)
+	// allows rateLimit calls per second
+	apiChan := make(chan interface{}, rateLimit)
+
+	go flushChannelEverySecond(&apiChan)
 
 	for {
 		now := time.Now()
@@ -85,9 +87,11 @@ func executeUpdates(rateLimit int, burstLimit int, authorizer *autorest.Authoriz
 			log.Panic(err)
 		}
 		for _, sub := range subs {
-			go func(sub string, start, now time.Time) {
-				pqueue <- func() { evaluateStatus(*authorizer, *graphAuthorizer, sub, start, now) }
-			}(sub, start, now)
+			go func(apiChan *chan interface{}, sub string, start, now time.Time) {
+				pqueue <- struct{}{}
+				evaluateStatus(*authorizer, *graphAuthorizer, sub, apiChan, start, now)
+				<-pqueue
+			}(&apiChan, sub, start, now)
 		}
 
 		back, _ := time.ParseDuration(fmt.Sprintf("-%ds", rateLimit*20))
@@ -95,22 +99,14 @@ func executeUpdates(rateLimit int, burstLimit int, authorizer *autorest.Authoriz
 	}
 }
 
-func executeEvaluateStatusInParallel(pqueue chan func(), done chan interface{}, rateLimit int) {
-	var wg sync.WaitGroup
-	ticker := time.NewTicker(time.Second / time.Duration(rateLimit))
+func flushChannelEverySecond(apiChan *chan interface{}) {
+	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		select {
-		case task := <-pqueue:
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				task()
-			}()
-		// graceful shutdown
-		case <-done:
-			wg.Wait()
+	for {
+		<-ticker.C
+		for len(*apiChan) > 0 {
+			<-*apiChan
 		}
 	}
 }
@@ -118,6 +114,7 @@ func executeEvaluateStatusInParallel(pqueue chan func(), done chan interface{}, 
 func evaluateStatus(
 	auth autorest.Authorizer, authGraph autorest.Authorizer,
 	subscription string,
+	apiChan *chan interface{},
 	fromTime time.Time, toTime time.Time) {
 	log.Printf("Evaluating status for: %s", subscription)
 
@@ -129,6 +126,7 @@ func evaluateStatus(
 	tstarts := fromTime.Format("2006-01-02T15:04:05")
 	ts := toTime.Format("2006-01-02T15:04:05")
 	filterString := fmt.Sprintf("eventTimestamp ge '%s' and eventTimestamp le '%s'", tstarts, ts)
+	*apiChan <- struct{}{}
 	listResources, err := activityClient.ListComplete(context.Background(), filterString, "")
 	if err != nil {
 		log.Fatal(err)
@@ -150,6 +148,7 @@ func evaluateStatus(
 			log.Println(strings.ToLower(*logActivity.ResourceType.Value))
 			continue
 		}
+		*apiChan <- struct{}{}
 		res, err := resourceClient.GetByID(context.Background(), resourceID, apiVersion)
 
 		if res.Response.StatusCode != 404 && err != nil {
@@ -179,6 +178,7 @@ func evaluateStatus(
 				ID:   res.ID,
 				Tags: res.Tags,
 			}
+			*apiChan <- struct{}{}
 			_, err := resourceClient.UpdateByID(context.Background(), *resUpdate.ID, apiVersion, resUpdate)
 			if err != nil {
 				log.Println(err)
