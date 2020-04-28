@@ -131,17 +131,17 @@ func getRateLimitedContext(apiChan *chan interface{}) context.Context {
 func evaluateStatus(
 	auth autorest.Authorizer, authGraph autorest.Authorizer,
 	subscription string,
-	decorator autorest.PrepareDecorator,
+	prepareDecorator autorest.PrepareDecorator,
 	fromTime time.Time, toTime time.Time) {
 	log.Printf("Evaluating status for: %s", subscription)
 
 	resourceClient := resources.NewClient(subscription)
 	resourceClient.Authorizer = auth
-	resourceClient.RequestInspector = decorator
+	resourceClient.RequestInspector = prepareDecorator
 
 	activityClient := insights.NewActivityLogsClient(subscription)
 	activityClient.Authorizer = auth
-	activityClient.RequestInspector = decorator
+	activityClient.RequestInspector = prepareDecorator
 
 	tstarts := fromTime.Format("2006-01-02T15:04:05")
 	ts := toTime.Format("2006-01-02T15:04:05")
