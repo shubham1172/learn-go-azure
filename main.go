@@ -70,9 +70,9 @@ func main() {
 	log.Println("End of schedule")
 }
 
-func getRateLimitedPrepareDecorator(apiChan *chan interface{}) autorest.PrepareDecorator {
+func getRateLimitedPrepareDecorator(apiChan chan interface{}) autorest.PrepareDecorator {
 	return func(p autorest.Preparer) autorest.Preparer {
-		*apiChan <- struct{}{}
+		apiChan <- struct{}{}
 		return p
 	}
 }
@@ -85,7 +85,7 @@ func executeUpdates(rateLimit int, burstLimit int, authorizer *autorest.Authoriz
 	// allows rateLimit calls per second
 	apiChan := make(chan interface{}, rateLimit)
 
-	go flushChannelEverySecond(&apiChan)
+	go flushChannelEverySecond(apiChan)
 
 	for {
 		now := time.Now()
@@ -94,12 +94,12 @@ func executeUpdates(rateLimit int, burstLimit int, authorizer *autorest.Authoriz
 			log.Panic(err)
 		}
 		for _, sub := range subs {
-			go func(apiChan *chan interface{}, sub string, start, now time.Time) {
+			go func(apiChan chan interface{}, sub string, start, now time.Time) {
 				subChan <- struct{}{}
 				evaluateStatus(*authorizer, *graphAuthorizer, sub,
 					getRateLimitedPrepareDecorator(apiChan), start, now)
 				<-subChan
-			}(&apiChan, sub, start, now)
+			}(apiChan, sub, start, now)
 		}
 
 		back, _ := time.ParseDuration(fmt.Sprintf("-%ds", rateLimit*20))
@@ -107,14 +107,14 @@ func executeUpdates(rateLimit int, burstLimit int, authorizer *autorest.Authoriz
 	}
 }
 
-func flushChannelEverySecond(apiChan *chan interface{}) {
+func flushChannelEverySecond(apiChan chan interface{}) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	for {
-		<-ticker.C
-		for len(*apiChan) > 0 {
-			<-*apiChan
+	l := len(apiChan)
+	for range ticker.C {
+		for i := 0; i < l; i++ {
+			<-apiChan
 		}
 	}
 }
